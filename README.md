@@ -74,10 +74,11 @@ El diseño de la interfaz se realiza con archivos `.ui` usando Qt Designer.
 Abrir archivo:
 <img width="1486" height="903" alt="image" src="https://github.com/user-attachments/assets/6497f66d-8e85-4186-9fcc-d12b4ec5ad4f" />
 
-
 ```bash
     ui/main.ui
 ```
+Seleccionar archivo:
+<img width="799" height="502" alt="image" src="https://github.com/user-attachments/assets/dee919db-fb89-429b-a191-b66cfa3eafec" />
 
 ### 🔄 Convertir .ui a Python
 
