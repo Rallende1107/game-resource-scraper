@@ -72,6 +72,8 @@ El diseño de la interfaz se realiza con archivos `.ui` usando Qt Designer.
     pyside6-designer
 ```
 Abrir archivo:
+<img width="1486" height="903" alt="image" src="https://github.com/user-attachments/assets/6497f66d-8e85-4186-9fcc-d12b4ec5ad4f" />
+
 
 ```bash
     ui/main.ui
