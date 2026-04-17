@@ -77,7 +77,7 @@ Abrir archivo:
 ```bash
     ui/main.ui
 ```
-Seleccionar archivo:
+
 <img width="799" height="502" alt="image" src="https://github.com/user-attachments/assets/dee919db-fb89-429b-a191-b66cfa3eafec" />
 
 ### 🔄 Convertir .ui a Python
