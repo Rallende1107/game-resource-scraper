@@ -12,18 +12,17 @@ desarrollados en motores como **Ren'Py** y otros.
 ## 🚀 Características
 
 - 📂 Extracción de imágenes, audio y video
-- 🧩 Compatible con proyectos Ren'Py
-- 🎨 Interfaz gráfica construida con PySide6
+- 🎮 Compatible con proyectos **Ren'Py**
+- 🖥️ Interfaz gráfica construida con PySide6
 - ⚡ Procesamiento rápido y automatizado
-- 📁 Organización de archivos extraídos
-- 📁 descompilar **RPA** Y **RPYC** de juegos **Ren'Py**
+- 🗂️ Organización de archivos extraídos
+- 🔓 Descompilación **RPA** Y **RPYC** de juegos **Ren'Py**
 
 ---
 
 ## 📸 Capturas (opcional)
 
 <img width="804" height="686" alt="image" src="https://github.com/user-attachments/assets/b89c5bf1-0421-4f51-9274-3f582867d742" />
-
 
 ---
 
