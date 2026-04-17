@@ -22,7 +22,8 @@ desarrollados en motores como **Ren'Py** y otros.
 
 ## 📸 Capturas (opcional)
 
-_Aquí puedes añadir screenshots de la app_
+<img width="804" height="686" alt="image" src="https://github.com/user-attachments/assets/b89c5bf1-0421-4f51-9274-3f582867d742" />
+
 
 ---
 
@@ -72,10 +73,13 @@ El diseño de la interfaz se realiza con archivos `.ui` usando Qt Designer.
     pyside6-designer
 ```
 Abrir archivo:
+<img width="1486" height="903" alt="image" src="https://github.com/user-attachments/assets/6497f66d-8e85-4186-9fcc-d12b4ec5ad4f" />
 
 ```bash
     ui/main.ui
 ```
+
+<img width="799" height="502" alt="image" src="https://github.com/user-attachments/assets/dee919db-fb89-429b-a191-b66cfa3eafec" />
 
 ### 🔄 Convertir .ui a Python
 
