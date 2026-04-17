@@ -3,7 +3,7 @@
 ################################################################################
 ## Form generated from reading UI file 'main.ui'
 ##
-## Created by: Qt User Interface Compiler version 6.8.2
+## Created by: Qt User Interface Compiler version 6.10.1
 ##
 ## WARNING! All changes made in this file will be lost when recompiling UI file!
 ################################################################################
@@ -590,7 +590,7 @@ class Ui_MainWindow(object):
         self.groupBox_actions_directorios.setGeometry(QRect(30, 210, 732, 81))
         self.layoutWidget = QWidget(self.groupBox_actions_directorios)
         self.layoutWidget.setObjectName(u"layoutWidget")
-        self.layoutWidget.setGeometry(QRect(10, 35, 534, 23))
+        self.layoutWidget.setGeometry(QRect(10, 35, 552, 26))
         self.horizontalLayout_2 = QHBoxLayout(self.layoutWidget)
         self.horizontalLayout_2.setObjectName(u"horizontalLayout_2")
         self.horizontalLayout_2.setContentsMargins(0, 0, 0, 0)
@@ -682,7 +682,7 @@ class Ui_MainWindow(object):
         self.groupBox_tipo_descargas.setGeometry(QRect(20, 70, 732, 43))
         self.layoutWidget_2 = QWidget(self.groupBox_tipo_descargas)
         self.layoutWidget_2.setObjectName(u"layoutWidget_2")
-        self.layoutWidget_2.setGeometry(QRect(90, 10, 534, 23))
+        self.layoutWidget_2.setGeometry(QRect(90, 10, 534, 26))
         self.horizontalLayout_3 = QHBoxLayout(self.layoutWidget_2)
         self.horizontalLayout_3.setObjectName(u"horizontalLayout_3")
         self.horizontalLayout_3.setContentsMargins(0, 0, 0, 0)
@@ -719,7 +719,7 @@ class Ui_MainWindow(object):
 
         self.retranslateUi(MainWindow)
 
-        self.tabWidget.setCurrentIndex(0)
+        self.tabWidget.setCurrentIndex(5)
 
 
         QMetaObject.connectSlotsByName(MainWindow)

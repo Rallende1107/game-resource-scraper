@@ -45,7 +45,7 @@
      <enum>Qt::LayoutDirection::LeftToRight</enum>
     </property>
     <property name="currentIndex">
-     <number>0</number>
+     <number>5</number>
     </property>
     <widget class="QWidget" name="tab_inicio">
      <attribute name="title">
@@ -1315,8 +1315,8 @@
         <rect>
          <x>10</x>
          <y>35</y>
-         <width>534</width>
-         <height>23</height>
+         <width>552</width>
+         <height>26</height>
         </rect>
        </property>
        <layout class="QHBoxLayout" name="horizontalLayout_2">
@@ -1587,7 +1587,7 @@
          <x>90</x>
          <y>10</y>
          <width>534</width>
-         <height>23</height>
+         <height>26</height>
         </rect>
        </property>
        <layout class="QHBoxLayout" name="horizontalLayout_3">
