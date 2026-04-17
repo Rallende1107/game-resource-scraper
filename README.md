@@ -22,7 +22,8 @@ desarrollados en motores como **Ren'Py** y otros.
 
 ## 📸 Capturas (opcional)
 
-_Aquí puedes añadir screenshots de la app_
+<img width="804" height="686" alt="image" src="https://github.com/user-attachments/assets/b89c5bf1-0421-4f51-9274-3f582867d742" />
+
 
 ---
 
