@@ -23,4 +23,4 @@ urllib3==2.6.3
 yarl==1.22.0
 youtube-dl
 rpycdec
-rpatools====0.1.1
+rpatools==0.1.1
