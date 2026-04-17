@@ -1,0 +1,7 @@
+pip install -r 
+cd venv\Scripts
+Abrir editor_
+"D:\Python\03.- Tkinter\Juegosv3\venv\Scripts\pyside6-designer.exe" "D:\Python\03.- Tkinter\Juegosv3\ui\main.ui"
+
+Convertir ui a python:
+pyside6-uic "d:\Python\03.- Tkinter\Juegosv3\ui\main.ui" -o "d:\Python\03.- Tkinter\Juegosv3\ui\main_view.py"
