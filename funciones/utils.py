@@ -51,7 +51,6 @@ def listar_carpetas_html(directorio):
         print(f"Error al listar carpetas en {directorio}: {e}")
         return []
 
-
 # ================================================
 # FUNCIONES PARA VERIFICACIÓN DE ESTRUCTURA
 # ================================================
@@ -89,22 +88,71 @@ def verificar_estructura_html(directorio):
 # ================================================
 # FUNCIONES PARA CONTAR ARCHIVOS
 # ================================================
+def generador_rutas(carpeta_base, formatos, EXCLUIR_CARPETAS, ruta_destino_final):
+    """
+    GENERADOR: En lugar de crear una lista gigante que colapse la RAM,
+    encuentra un archivo y lo 'escupe' (yield) uno por uno bajo demanda.
+    """
+    for root, dirs, files in os.walk(carpeta_base):
+        dirs[:] = [
+            d for d in dirs
+            if not (d.lower() in EXCLUIR_CARPETAS and os.path.normpath(root) == os.path.normpath(carpeta_base))
+            and not d.startswith(".")
+        ]
+
+        for archivo in files:
+            if archivo.lower().endswith(tuple(formatos)):
+                origen = os.path.join(root, archivo)
+                rel = os.path.relpath(origen, carpeta_base)
+                destino_final = os.path.join(ruta_destino_final, os.path.dirname(rel))
+
+                yield (origen, destino_final, archivo)
+
+
+
+# def archivos_por_extension(ruta, extensiones):
+#     """Cuenta la cantidad de archivos con las extensiones especificadas en el directorio dado."""
+#     print ("Ejecutando Función archivos por extension")
+
+#     if not isinstance(extensiones, list):
+#         extensiones = [extensiones]
+
+#     try:
+#         contador = 0
+#         for root, _, files in os.walk(ruta):
+#             for archivo in files:
+#                 if any(archivo.lower().endswith(ext.lower()) for ext in extensiones):
+#                     contador += 1
+#         print (f"\nSe encontraron {contador} archivos con las extensiones {extensiones} \nEn la ruta: {ruta}")
+#         return contador
+
+#     except Exception as e:
+#         print(f"Error al ejecutar la función 'archivos_por_extension': {str(e)}")
+#         return 0
+
 def archivos_por_extension(ruta, extensiones):
     """Cuenta la cantidad de archivos con las extensiones especificadas en el directorio dado."""
-    print ("Ejecutando Función archivos por extension")
+    print("Ejecutando Función archivos por extension")
 
-    if not isinstance(extensiones, list):
+    # 1. Asegurar que extensiones sea una lista/tupla
+    if isinstance(extensiones, str):
         extensiones = [extensiones]
+
+    # 🔥 LA MAGIA: Convertir la lista a una TUPLA con todo en minúsculas UNA SOLA VEZ.
+    ext_tupla = tuple(ext.lower() for ext in extensiones)
 
     try:
         contador = 0
         for root, _, files in os.walk(ruta):
             for archivo in files:
-                if any(archivo.lower().endswith(ext.lower()) for ext in extensiones):
+                # 2. Comprobación nativa ultrarrápida.
+                # Le pasamos la tupla entera a endswith()
+                if archivo.lower().endswith(ext_tupla):
                     contador += 1
-        print (f"\nSe encontraron {contador} archivos con las extensiones {extensiones} \nEn la ruta: {ruta}")
+
+        print(f"\nSe encontraron {contador} archivos con las extensiones {extensiones} \nEn la ruta: {ruta}")
         return contador
 
     except Exception as e:
-        print(f"Error al ejecutar la función 'archivos_por_extension': {str(e)}")
+        print(f"❌ Error al ejecutar la función 'archivos_por_extension': {str(e)}")
         return 0

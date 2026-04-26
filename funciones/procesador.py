@@ -1,24 +1,12 @@
-import os, shutil, subprocess, requests, re
-from pytubefix import YouTube
-from .utils import verificar_estructura_renpy, listar_carpetas_renpy, archivos_por_extension, listar_sub_carpetas
-from .utils import verificar_estructura_html, listar_carpetas_html
-
-
+import os, shutil, subprocess, requests, re, concurrent.futures,  itertools
 import unrpa as unrpa
+
+from pytubefix import YouTube
 from rpycdec import decompile, translate
 
-formatos_imagen = ['.jpg', '.jpeg', '.webp', '.png', '.bmp', '.gif', '.tiff', '.tif', '.svg', '.rpgmvp', '.avif',]
-formatos_fuente = ['.woff', '.otf', '.ttf', '.ttc',]
-formatos_videos = [".mp4", ".mkv", ".avi", ".mov", ".webm", ".wmv", ".flv",]
-formatos_musica = [".mp3", ".aac", ".ogg", ".wma", ".wav", ]
+from .utils import verificar_estructura_renpy, listar_carpetas_renpy, archivos_por_extension, listar_sub_carpetas, verificar_estructura_html, listar_carpetas_html, generador_rutas
+from .constantes import (FORMATOS_IMAGEN, FORMATOS_FUENTE, FORMATOS_VIDEOS, FORMATOS_MUSICA, TIPOS_FORMATOS, CONFIG_JUEGOS, VERSIONES_RPA)
 
-# Diccionario para asociar los tipos con sus variables globales y carpetas
-TIPOS_FORMATOS = {
-    "imagen": (formatos_imagen, "Imagenes"),
-    "fuente": (formatos_fuente, "Fuentes"),
-    "musica": (formatos_musica, "Canciones"),
-    "video": (formatos_videos, "Videos"),
-}
 
 def procesar_renpy(origen, destino, tipo_directorio, opciones):
     CARPETAS = []
@@ -71,10 +59,9 @@ def procesar_renpy(origen, destino, tipo_directorio, opciones):
                 cantidad_archivos = archivos_por_extension(carpeta, formatos)
 
                 if cantidad_rpa == 0 and cantidad_archivos > 0:
-                    print(f'📂 Copiando {tipo} desde {nombre_carpeta} hacia {destino}')
+                    # print(f'📂 Copiando {tipo} desde {nombre_carpeta} hacia {destino}')
                     # copia_organizada(carpeta, destino, cantidad_archivos, tipo)
                     copia_organizada(carpeta=carpeta, destino=destino, tipo=tipo, tipo_juego=1)
-
 
 def procesar_multimedia(origen, destino, tipo_directorio, opciones, tipo_copia):
     CARPETAS = []
@@ -106,9 +93,7 @@ def procesar_multimedia(origen, destino, tipo_directorio, opciones, tipo_copia):
                     if tipo_copia == 'directa':
                         copia_directa(carpeta, destino, cantidad_archivos, tipo)
                     else:
-                        copia_organizada(carpeta, destino, cantidad_archivos, tipo)
-
-
+                        copia_organizada(carpeta=carpeta, destino=destino, tipo=tipo, tipo_juego=0)
 
 def procesar_html(origen, destino, tipo_directorio, opciones):
     CARPETAS = []
@@ -148,6 +133,18 @@ def procesar_unity(origen, destino, tipo_directorio, opciones):
     pass
 
 
+def copiar_archivo_worker(origen, destino_final, archivo):
+    """Función aislada que copia un archivo (shutil gestiona la RAM del archivo por bloques)"""
+    try:
+        os.makedirs(destino_final, exist_ok=True)
+        ruta_destino_completa = os.path.join(destino_final, archivo)
+
+        shutil.copyfile(origen, ruta_destino_completa)
+
+        return True, None
+    except Exception as e:
+        return False, f"Error en {archivo}: {e}"
+
 
 def procesar_directorios(origen, destino,  opciones):
     if not destino.strip():
@@ -178,359 +175,74 @@ def procesar_directorios(origen, destino,  opciones):
 
     print(f"✅ Listado guardado en: {ruta_destino_final}")
 
-# ================================================
-# FUNCIONES Proceso
-# ================================================
-# def proceso_renpy(lista_carpetas, opciones, destino):
-#     for carpeta in lista_carpetas:
-#         carpeta_game = os.path.join(carpeta, "game")
-#         nombre_carpeta = os.path.basename(carpeta)
-#         cantidad_rpa = archivos_por_extension(carpeta_game, '.rpa')
-#         cantidad_rpyc = archivos_por_extension(carpeta_game, '.rpyc')
-
-#         if cantidad_rpa > 0:
-#             if 'rpa' in opciones or ('rpyc' in opciones and cantidad_rpyc == 0) or any(opcion in opciones for opcion in ['img', 'sources', 'music', 'video']):
-#                 extraer_rpa(carpeta, nombre_carpeta)
-#         elif 'rpa' in opciones:
-#             print(f'No hay archivos RPA para extraer en {nombre_carpeta}')
-
-#         # Descompilar RPYC
-#         if 'rpyc' in opciones:
-#             if cantidad_rpyc > 0 or cantidad_rpa > 0:
-#                 decompilar_rpyc(carpeta, nombre_carpeta)
-
-#         # Mapeo de opciones con tipos para copia_organizada
-#         operaciones_copia = {
-#             'img': "imagen",
-#             'sources': "fuente",
-#             'music': "musica",
-#             'video': "video",
-#         }
-#         cantidad_rpa = archivos_por_extension(carpeta_game, '.rpa')
-
-#         # Ejecutar copias
-#         for opcion, tipo in operaciones_copia.items():
-#             if opcion in opciones:
-#                 formatos, _ = TIPOS_FORMATOS[tipo]  # Obtener los formatos del tipo
-#                 cantidad_archivos = archivos_por_extension(carpeta_game, formatos)
-
-#                 if cantidad_rpa == 0 and cantidad_archivos > 0:
-#                     print(f'📂 Copiando {tipo} desde {nombre_carpeta} hacia {destino}')
-#                     copia_organizada(carpeta=carpeta, destino=destino, cantidad_total=cantidad_archivos, tipo=tipo, renpy=True)
-
-# ================================================
-# FUNCIONES Copiado
-# ================================================
-# def copia_organizada(carpeta, destino, cantidad_total, tipo, renpy=False):
-#     """Copia archivos de un tipo específico (imagen, fuente, video, música...) desde una carpeta de origen a un destino."""
-
-#     if tipo not in TIPOS_FORMATOS:
-#         raise ValueError(f"❌ Tipo '{tipo}' no admitido. Opciones: {list(TIPOS_FORMATOS.keys())}")
-
-#     formatos, tipo_str = TIPOS_FORMATOS[tipo]
-#     print(f"\n>>> Iniciando copia de {tipo_str}...")
-
-#     archivos_copiados = 0
-#     carpeta_game = carpeta
-#     # if renpy:
-#     #     carpeta_game = os.path.join(carpeta, 'game')
-#     # else:
-#     #     carpeta_game = os.path.join(carpeta)
-
-#     nombre_carpeta = os.path.basename(carpeta)
-#     carpeta_destino = f"{nombre_carpeta}_Extraccion"
-
-#     # Definir ruta de destino
-#     ruta_destino_final = os.path.join(
-#         os.path.dirname(carpeta) if destino == carpeta or not destino.strip() else destino,
-#         carpeta_destino,
-#         tipo_str
-#     )
-
-#     try:
-#         # Contar archivos disponibles
-#         total_archivos = sum(
-#             len(files) for r, _, files in os.walk(carpeta_game)
-#             if any(f.lower().endswith(tuple(formatos)) for f in files)
-#         )
-
-#         if total_archivos == 0:
-#             print(f"⚠️ No hay {tipo_str} para copiar.")
-#             return
-#         else:
-#             os.makedirs(ruta_destino_final, exist_ok=True)
-#             print(f"📂 Carpeta de destino: {ruta_destino_final}")
-
-#         # total_archivos = min(total_archivos, cantidad_total)
-
-#         print(f"🔍 {tipo_str} encontrados: {total_archivos}, se copiarán: {total_archivos}")
-
-#         # Copiar archivos
-#         for directorio_raiz, _, archivos in os.walk(carpeta_game):
-#             for archivo in archivos:
-#                 if archivo.lower().endswith(tuple(formatos)):
-#                     ruta_origen = os.path.join(directorio_raiz, archivo)
-#                     ruta_relativa = os.path.relpath(ruta_origen, carpeta_game)
-#                     carpeta_destino_especifica = os.path.join(ruta_destino_final, os.path.dirname(ruta_relativa))
-
-#                     os.makedirs(carpeta_destino_especifica, exist_ok=True)
-
-#                     shutil.copyfile(ruta_origen, os.path.join(carpeta_destino_especifica, archivo))
-#                     archivos_copiados += 1
-#                     print(f"\r✅ Copiando {tipo}: {archivos_copiados} - {total_archivos} de {tipo_str}", end='', flush=True)
-
-#                     if archivos_copiados >= total_archivos:
-#                         break
-#             if archivos_copiados >= total_archivos:
-#                 break
-
-#         print(f"\n🎉 Se copiaron {archivos_copiados} {tipo_str} correctamente.")
-
-#     except Exception as e:
-#         print(f"❌ Error durante la copia: {e}")
-
-# def copia_organizada(carpeta, destino, tipo, tipo_juego="general"):
-
-#     config = CONFIG_JUEGOS.get(tipo_juego, {})
-#     EXCLUIR_CARPETAS = [c.lower() for c in config.get("excluir_carpetas", [])]
-
-#     if tipo not in TIPOS_FORMATOS:
-#         raise ValueError(f"❌ Tipo '{tipo}' no admitido. Opciones: {list(TIPOS_FORMATOS.keys())}")
-
-#     formatos, tipo_str = TIPOS_FORMATOS[tipo]
-#     print(f"\n>>> Iniciando copia de {tipo_str}...")
-
-#     carpeta_base = carpeta
-#     nombre_carpeta = os.path.basename(carpeta)
-#     carpeta_destino = f"{nombre_carpeta}_Extraccion"
-
-#     ruta_destino_final = os.path.join(
-#         os.path.dirname(carpeta) if destino == carpeta or not destino.strip() else destino,
-#         carpeta_destino,
-#         tipo_str
-#     )
-
-#     try:
-#         total_archivos = sum(
-#             len(files) for r, _, files in os.walk(carpeta_base)
-#             if any(f.lower().endswith(tuple(formatos)) for f in files)
-#         )
-
-#         if total_archivos == 0:
-#             print(f"⚠️ No hay {tipo_str} para copiar.")
-#             return
-
-#         os.makedirs(ruta_destino_final, exist_ok=True)
-#         print(f"📂 Carpeta de destino: {ruta_destino_final}")
-#         print(f"🔍 {tipo_str} encontrados: {total_archivos}")
-
-#         archivos_copiados = 0
-
-
-
-#         for root, dirs, files in os.walk(carpeta_base):
-#             dirs[:] = [d for d in dirs if d.lower() not in EXCLUIR_CARPETAS]
-#             for archivo in files:
-#                 if archivo.lower().endswith(tuple(formatos)):
-#                     origen = os.path.join(root, archivo)
-#                     rel = os.path.relpath(origen, carpeta_base)
-#                     destino_final = os.path.join(ruta_destino_final, os.path.dirname(rel))
-
-#                     os.makedirs(destino_final, exist_ok=True)
-#                     shutil.copyfile(origen, os.path.join(destino_final, archivo))
-
-#                     archivos_copiados += 1
-#                     print(f"\r✅ Copiando {tipo}: {archivos_copiados}/{total_archivos}", end='', flush=True)
-
-#         print(f"\n🎉 Se copiaron {archivos_copiados} {tipo_str} correctamente.")
-
-#     except Exception as e:
-#         print(f"❌ Error durante la copia: {e}")
-
-
-CONFIG_JUEGOS = {
-    0: {  # general
-        "excluir_carpetas": []
-    },
-    1: {  # renpy
-        "excluir_carpetas": ["cache", "tmp", "__pycache__", "lib", "renpy"]
-    },
-    2: {  # unity (ejemplo)
-        "excluir_carpetas": ["_data", "mono", "plugins"]
-    }
-}
-
 def copia_organizada(carpeta, destino, tipo, tipo_juego=0):
-
     config = CONFIG_JUEGOS.get(tipo_juego, CONFIG_JUEGOS.get(0, {}))
     EXCLUIR_CARPETAS = [c.lower() for c in config.get("excluir_carpetas", [])]
 
     if tipo not in TIPOS_FORMATOS:
-        raise ValueError(f"❌ Tipo '{tipo}' no admitido. Opciones: {list(TIPOS_FORMATOS.keys())}")
+        raise ValueError(f"❌ Tipo '{tipo}' no admitido.")
 
     formatos, tipo_str = TIPOS_FORMATOS[tipo]
-    print(f"\n>>> Iniciando copia de {tipo_str}...")
 
     carpeta_base = carpeta
     nombre_carpeta = os.path.basename(carpeta)
-    carpeta_destino = f"{nombre_carpeta}_Extraccion"
+    carpeta_destino = f"{nombre_carpeta}"
 
-    ruta_destino_final = os.path.join(
-        os.path.dirname(carpeta) if destino == carpeta or not destino.strip() else destino,
-        carpeta_destino,
-        tipo_str
-    )
+    ruta_destino_final = os.path.join(os.path.dirname(carpeta) if destino == carpeta or not destino.strip() else destino, carpeta_destino, tipo_str)
+
+    # 🔥 NUEVO ENCABEZADO LIMPIO
+    print("")
+    print(f">>> 🚀 COPIANDO: {tipo_str}")
+    print(f"\tDesde: {carpeta_base}")
+    print(f"\tHacia: {ruta_destino_final}")
+    print("-" * 50)
 
     try:
-        # 🔥 CONTEO (con lógica correcta)
-        total_archivos = 0
-
-        for root, dirs, files in os.walk(carpeta_base):
-            dirs[:] = [
-                d for d in dirs
-                if not (
-                    d.lower() in EXCLUIR_CARPETAS and os.path.normpath(root) == os.path.normpath(carpeta_base)
-                )
-                and not d.startswith(".")
-            ]
-
-            total_archivos += sum(
-                1 for f in files if f.lower().endswith(tuple(formatos))
-            )
-
-        if total_archivos == 0:
-            print(f"⚠️ No hay {tipo_str} para copiar.")
-            return
-
-        os.makedirs(ruta_destino_final, exist_ok=True)
-        print(f"📂 Carpeta de destino: {ruta_destino_final}")
-        print(f"🔍 {tipo_str} encontrados: {total_archivos}")
+        # Iniciamos el generador (No ocupa casi nada de RAM)
+        archivos_a_copiar = generador_rutas(carpeta_base, formatos, EXCLUIR_CARPETAS, ruta_destino_final)
 
         archivos_copiados = 0
 
-        # 🔥 COPIA (misma lógica exacta)
-        for root, dirs, files in os.walk(carpeta_base):
-            dirs[:] = [
-                d for d in dirs
-                if not (
-                    d.lower() in EXCLUIR_CARPETAS and os.path.normpath(root) == os.path.normpath(carpeta_base)
-                )
-                and not d.startswith(".")
-            ]
+        # 4 a 8 workers es el límite dulce. Más de eso ahoga los discos duros mecánicos.
+        MAX_WORKERS = 4
+        # Nunca tendremos más de 100 archivos esperando en la memoria RAM
+        LIMITE_COLA_RAM = 100
 
-            for archivo in files:
-                if archivo.lower().endswith(tuple(formatos)):
-                    origen = os.path.join(root, archivo)
-                    rel = os.path.relpath(origen, carpeta_base)
-                    destino_final = os.path.join(
-                        ruta_destino_final,
-                        os.path.dirname(rel)
-                    )
+        with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+            futuros = set()
 
-                    os.makedirs(destino_final, exist_ok=True)
-                    shutil.copyfile(
-                        origen,
-                        os.path.join(destino_final, archivo)
-                    )
+            # Llenamos la cola inicial con solo 100 archivos
+            for tarea in itertools.islice(archivos_a_copiar, LIMITE_COLA_RAM):
+                futuros.add(executor.submit(copiar_archivo_worker, *tarea))
 
-                    archivos_copiados += 1
-                    print(
-                        f"\r✅ Copiando {tipo}: {archivos_copiados}/{total_archivos}",
-                        end='',
-                        flush=True
-                    )
+            # Mientras haya archivos copiándose...
+            while futuros:
+                # Esperamos a que termine *al menos un* archivo
+                terminados, pendientes = concurrent.futures.wait(futuros, return_when=concurrent.futures.FIRST_COMPLETED)
 
-        print(f"\n🎉 Se copiaron {archivos_copiados} {tipo_str} correctamente.")
+                # Procesamos los que terminaron
+                for futuro in terminados:
+                    # 🔥 SE ARREGLÓ EL UNPACK: Ahora recibe 4 variables para que no dé error
+
+                    exito, error = futuro.result()
+                    if exito:
+                        archivos_copiados += 1
+                        # 🔥 MENSAJE MINIMALISTA QUE SE ACTUALIZA EN LA MISMA LÍNEA
+                        print(f"\r✅ {tipo_str} copiados: {archivos_copiados}", end='', flush=True)
+                    else:
+                        print(f"\n❌ {error}")
+
+                # Actualizamos la lista de tareas pendientes
+                futuros = pendientes
+
+                # Por cada archivo que terminó, sacamos uno nuevo del disco para rellenar la cola
+                for tarea in itertools.islice(archivos_a_copiar, len(terminados)):
+                    futuros.add(executor.submit(copiar_archivo_worker, *tarea))
+
+        print(f"\n🎉 ¡Proceso finalizado! Se copiaron {archivos_copiados} {tipo_str} correctamente.")
 
     except Exception as e:
-        print(f"❌ Error durante la copia: {e}")
-
-# def copia_organizada(carpeta, destino, tipo, tipo_juego=0):
-
-#     config = CONFIG_JUEGOS.get(tipo_juego, {})
-#     EXCLUIR_CARPETAS = [c.lower() for c in config.get("excluir_carpetas", [])]
-
-#     if tipo not in TIPOS_FORMATOS:
-#         raise ValueError(f"❌ Tipo '{tipo}' no admitido. Opciones: {list(TIPOS_FORMATOS.keys())}")
-
-#     formatos, tipo_str = TIPOS_FORMATOS[tipo]
-#     print(f"\n>>> Iniciando copia de {tipo_str}...")
-
-#     carpeta_base = carpeta
-#     nombre_carpeta = os.path.basename(carpeta)
-#     carpeta_destino = f"{nombre_carpeta}_Extraccion"
-
-#     ruta_destino_final = os.path.join(
-#         os.path.dirname(carpeta) if destino == carpeta or not destino.strip() else destino,
-#         carpeta_destino,
-#         tipo_str
-#     )
-
-#     try:
-#         # 🔥 Conteo CORRECTO (con exclusión aplicada)
-#         total_archivos = 0
-#         for root, dirs, files in os.walk(carpeta_base):
-#             dirs[:] = [
-#                 d for d in dirs
-#                 if d.lower() not in EXCLUIR_CARPETAS and not d.startswith(".")
-#             ]
-
-#             total_archivos += sum(
-#                 1 for f in files if f.lower().endswith(tuple(formatos))
-#             )
-
-#         if total_archivos == 0:
-#             print(f"⚠️ No hay {tipo_str} para copiar.")
-#             return
-
-#         os.makedirs(ruta_destino_final, exist_ok=True)
-#         print(f"📂 Carpeta de destino: {ruta_destino_final}")
-#         print(f"🔍 {tipo_str} encontrados: {total_archivos}")
-
-#         archivos_copiados = 0
-
-#         # 🔥 Copia (misma lógica de exclusión)
-#         for root, dirs, files in os.walk(carpeta_base):
-#             # dirs[:] = [
-#             #     d for d in dirs
-#             #     if d.lower() not in EXCLUIR_CARPETAS and not d.startswith(".")
-#             # ]
-#             dirs[:] = [
-#                 d for d in dirs
-#                 if not (
-#                     d.lower() in EXCLUIR_CARPETAS
-#                     and root == carpeta_base  # 👈 SOLO en raíz
-#                 )
-#                 and not d.startswith(".")
-#             ]
-
-
-#             for archivo in files:
-#                 if archivo.lower().endswith(tuple(formatos)):
-#                     origen = os.path.join(root, archivo)
-#                     rel = os.path.relpath(origen, carpeta_base)
-#                     destino_final = os.path.join(
-#                         ruta_destino_final,
-#                         os.path.dirname(rel)
-#                     )
-
-#                     os.makedirs(destino_final, exist_ok=True)
-#                     shutil.copyfile(
-#                         origen,
-#                         os.path.join(destino_final, archivo)
-#                     )
-
-#                     archivos_copiados += 1
-#                     print(
-#                         f"\r✅ Copiando {tipo}: {archivos_copiados}/{total_archivos}",
-#                         end='',
-#                         flush=True
-#                     )
-
-#         print(f"\n🎉 Se copiaron {archivos_copiados} {tipo_str} correctamente.")
-
-#     except Exception as e:
-#         print(f"❌ Error durante la copia: {e}")
+        print(f"\n❌ Error crítico durante la copia: {e}")
 
 def copia_directa(carpeta, destino, cantidad_total, tipo):
     """Copia archivos de un tipo específico (imagen, fuente, video, música...) desde una carpeta de origen a un destino."""
@@ -543,7 +255,8 @@ def copia_directa(carpeta, destino, cantidad_total, tipo):
 
     archivos_copiados = 0
     nombre_carpeta = os.path.basename(carpeta)
-    carpeta_destino = f"{nombre_carpeta}_Extraccion"
+    # carpeta_destino = f"{nombre_carpeta}_Extraccion"
+    carpeta_destino = f"{nombre_carpeta}"
 
     # Definir ruta de destino
     ruta_destino_final = os.path.join(
@@ -635,8 +348,111 @@ def decompilar_rpyc(carpeta, nombre_carpeta):
     else:
         print("No se descompiló ningún archivo RPYC.")
 
+def worker_extraer_rpa(ruta_completa, archivo_rpa, carpeta_game):
+    """Worker aislado para procesar la extracción de un solo archivo RPA."""
+    # print(f"⚙️ Procesando: {archivo_rpa}...")
+
+    # 🔍 Leer header (para detectar protecciones)
+    try:
+        with open(ruta_completa, "rb") as f:
+            header = f.read(32).decode(errors="ignore")
+    except Exception:
+        header = ""
+
+    # 🚫 Detectar formatos protegidos tipo RWA
+    if header.startswith("RWA"):
+        return False, f"⛔ {archivo_rpa} usa formato protegido ({header.strip()}) → saltando"
+
+    # 🔹 Intento normal
+    try:
+        subprocess.run(
+            ["python", "-m", "unrpa", "-mp", carpeta_game, ruta_completa],
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
+        try:
+            os.remove(ruta_completa)
+        except Exception as e:
+            pass # Si el sistema bloquea el borrado, lo ignoramos para no tumbar el script
+        return True, f"✔️ {archivo_rpa} extraído correctamente."
+
+    except subprocess.CalledProcessError:
+        pass # Falló, pasamos al intento por versiones
+
+    # 🔹 Intentar con versiones conocidas (importadas globalmente)
+    for version in VERSIONES_RPA:
+        try:
+            subprocess.run(
+                ["python", "-m", "unrpa", "-f", version, "-mp", carpeta_game, ruta_completa],
+                check=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL
+            )
+            try:
+                os.remove(ruta_completa)
+            except Exception:
+                pass
+            return True, f"✔️ {archivo_rpa} extraído con versión {version}."
+
+        except subprocess.CalledProcessError:
+            continue
+
+    return False, f"❌ No se pudo extraer {archivo_rpa} con ninguna versión."
+
+
+def extraer_rpa(carpeta, nombre_carpeta):
+    carpeta_game = os.path.join(carpeta, 'game')
+
+    if not os.path.isdir(carpeta_game):
+        print(f"⚠️ No se encontró la carpeta 'game' en {nombre_carpeta}.")
+        return
+
+    print(f"\n>>> 🚀 EXTRACCIÓN RPA: {nombre_carpeta}")
+    print("-" * 50)
+
+    # 1. Recopilar todos los archivos RPA a extraer
+    archivos_rpa = []
+    for root, _, files in os.walk(carpeta_game):
+        for archivo_rpa in files:
+            if archivo_rpa.lower().endswith(".rpa"):
+                archivos_rpa.append((os.path.join(root, archivo_rpa), archivo_rpa))
+
+    total_rpa = len(archivos_rpa)
+    if total_rpa == 0:
+        print("ℹ️ No hay archivos RPA pendientes por extraer.")
+        return
+
+    print(f"📦 Se encontraron {total_rpa} archivos RPA. Iniciando extracción en paralelo...\n")
+
+    archivos_extraidos = 0
+    # 3 a 4 workers es el límite ideal para no saturar la lectura/escritura del disco duro
+    MAX_WORKERS = 3
+
+    # 2. Ejecutar la extracción en paralelo usando ThreadPoolExecutor
+    with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        # Mapeamos los futuros (tareas) al nombre del archivo para seguimiento
+        futuros = {
+            executor.submit(worker_extraer_rpa, ruta, nombre, carpeta_game): nombre
+            for ruta, nombre in archivos_rpa
+        }
+
+        # Procesar los resultados a medida que terminan
+        for futuro in concurrent.futures.as_completed(futuros):
+            nombre = futuros[futuro]
+            try:
+                exito, mensaje = futuro.result()
+                if exito:
+                    archivos_extraidos += 1
+                print(f"[{archivos_extraidos}/{total_rpa}] {mensaje}")
+                # print(mensaje)
+            except Exception as e:
+                print(f"❌ Error crítico en hilo procesando {nombre}: {e}")
+
+    print("-" * 50)
+    print(f"🎉 Extracción completada: {archivos_extraidos}/{total_rpa} archivos extraídos exitosamente.")
+
 # def extraer_rpa(carpeta, nombre_carpeta):
-#     print('Inicio extraer_rpa')
 #     carpeta_game = os.path.join(carpeta, 'game')
 
 #     if not os.path.isdir(carpeta_game):
@@ -647,117 +463,68 @@ def decompilar_rpyc(carpeta, nombre_carpeta):
 
 #     archivos_extraidos = []
 
+#     # Versiones soportadas por unrpa
+
 #     for root, _, files in os.walk(carpeta_game):
 #         for archivo_rpa in files:
-#             if archivo_rpa.lower().endswith(".rpa"):
-#                 ruta_completa = os.path.join(root, archivo_rpa)
+#             if not archivo_rpa.lower().endswith(".rpa"):
+#                 continue
 
+#             ruta_completa = os.path.join(root, archivo_rpa)
+
+#             # 🔍 Leer header (para detectar protecciones)
+#             try:
+#                 with open(ruta_completa, "rb") as f:
+#                     header = f.read(32).decode(errors="ignore")
+#             except:
+#                 header = ""
+
+#             # 🚫 Detectar formatos protegidos tipo RWA
+#             if header.startswith("RWA"):
+#                 print(f"⛔ {archivo_rpa} usa formato protegido ({header.strip()}) → saltando")
+#                 continue
+
+#             # 🔹 Intento normal
+#             try:
+#                 subprocess.run(
+#                     ["python", "-m", "unrpa", "-mp", carpeta_game, ruta_completa],
+#                     check=True,
+#                     stdout=subprocess.DEVNULL,
+#                     stderr=subprocess.DEVNULL
+#                 )
+#                 print(f"✔️ {archivo_rpa} extraído correctamente.")
+#                 archivos_extraidos.append(ruta_completa)
+
+#                 os.remove(ruta_completa)
+#                 print(f"🗑️ {archivo_rpa} eliminado tras extracción.")
+#                 continue
+
+#             except subprocess.CalledProcessError:
+#                 print(f"⚠️ Fallo inicial con {archivo_rpa}, probando versiones...")
+
+#             # 🔹 Intentar con versiones conocidas
+#             extraido = False
+#             for version in VERSIONES_RPA:
 #                 try:
-#                     # Intentar extracción sin argumento --force
-#                     # resultado = subprocess.run(["unrpa", "-mp", carpeta_game, ruta_completa], check=True)
-#                     resultado = subprocess.run(["python", "-m", "unrpa", "-mp", carpeta_game, ruta_completa], check=True)
-
-#                     print(f"Archivo {archivo_rpa} extraído correctamente.")
+#                     subprocess.run(
+#                         ["python", "-m", "unrpa", "-f", version, "-mp", carpeta_game, ruta_completa],
+#                         check=True,
+#                         stdout=subprocess.DEVNULL,
+#                         stderr=subprocess.DEVNULL
+#                     )
+#                     print(f"✔️ {archivo_rpa} extraído con {version}")
 #                     archivos_extraidos.append(ruta_completa)
+#                     extraido = True
+#                     break
+
 #                 except subprocess.CalledProcessError:
-#                     # Si falla, intentar extracción con argumento --force
-#                     try:
-#                         print(f"Error al extraer el archivo {archivo_rpa}, reintentando con --force.")
-#                         resultado = subprocess.run(["python", "-m", "unrpa", "-f", carpeta_game, ruta_completa], check=True)
+#                     continue
 
-#                         print(f"Archivo {archivo_rpa} extraído correctamente con --force.")
-#                         archivos_extraidos.append(ruta_completa)
-#                     except subprocess.CalledProcessError:
-#                         print(f"Error al extraer el archivo {archivo_rpa} después de reintentar con --force.")
-#                         continue
-
-#     for archivo_rpa in archivos_extraidos:
-#         try:
-#             os.remove(archivo_rpa)
-#             print(f"Archivo {archivo_rpa} eliminado correctamente.")
-#         except Exception as e:
-#             print(f"Error al eliminar el archivo {archivo_rpa}: {e}")
+#             if not extraido:
+#                 print(f"❌ No se pudo extraer {archivo_rpa} con ninguna versión.")
 
 
-def extraer_rpa(carpeta, nombre_carpeta):
-    import os
-    import subprocess
 
-    print('Inicio extraer_rpa')
-    carpeta_game = os.path.join(carpeta, 'game')
-
-    if not os.path.isdir(carpeta_game):
-        print(f"No se encontró la carpeta 'game' en {nombre_carpeta}.")
-        return
-
-    print(f"Extrayendo archivos RPA de la carpeta {nombre_carpeta}...")
-
-    archivos_extraidos = []
-
-    # Versiones soportadas por unrpa
-    VERSIONES_RPA = [
-        "RPA-3.0", "RPA-3.2", "RPA-4.0",
-        "RPA-2.0", "RPA-1.0",
-        "ALT-1.0", "ZiX-12A", "ZiX-12B"
-    ]
-
-    for root, _, files in os.walk(carpeta_game):
-        for archivo_rpa in files:
-            if not archivo_rpa.lower().endswith(".rpa"):
-                continue
-
-            ruta_completa = os.path.join(root, archivo_rpa)
-
-            # 🔍 Leer header (para detectar protecciones)
-            try:
-                with open(ruta_completa, "rb") as f:
-                    header = f.read(32).decode(errors="ignore")
-            except:
-                header = ""
-
-            # 🚫 Detectar formatos protegidos tipo RWA
-            if header.startswith("RWA"):
-                print(f"⛔ {archivo_rpa} usa formato protegido ({header.strip()}) → saltando")
-                continue
-
-            # 🔹 Intento normal
-            try:
-                subprocess.run(
-                    ["python", "-m", "unrpa", "-mp", carpeta_game, ruta_completa],
-                    check=True,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL
-                )
-                print(f"✔️ {archivo_rpa} extraído correctamente.")
-                archivos_extraidos.append(ruta_completa)
-
-                os.remove(ruta_completa)
-                print(f"🗑️ {archivo_rpa} eliminado tras extracción.")
-                continue
-
-            except subprocess.CalledProcessError:
-                print(f"⚠️ Fallo inicial con {archivo_rpa}, probando versiones...")
-
-            # 🔹 Intentar con versiones conocidas
-            extraido = False
-            for version in VERSIONES_RPA:
-                try:
-                    subprocess.run(
-                        ["python", "-m", "unrpa", "-f", version, "-mp", carpeta_game, ruta_completa],
-                        check=True,
-                        stdout=subprocess.DEVNULL,
-                        stderr=subprocess.DEVNULL
-                    )
-                    print(f"✔️ {archivo_rpa} extraído con {version}")
-                    archivos_extraidos.append(ruta_completa)
-                    extraido = True
-                    break
-
-                except subprocess.CalledProcessError:
-                    continue
-
-            if not extraido:
-                print(f"❌ No se pudo extraer {archivo_rpa} con ninguna versión.")
 # ================================================
 # Eliminar Directorios Vacios
 # ================================================
