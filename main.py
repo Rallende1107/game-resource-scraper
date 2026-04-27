@@ -1,15 +1,59 @@
 import sys, os
-from PySide6.QtWidgets import QApplication, QMainWindow, QFileDialog, QMessageBox
 from ui.main_view import Ui_MainWindow
-from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QApplication, QMainWindow, QFileDialog, QMessageBox, QPlainTextEdit, QVBoxLayout
+from PySide6.QtCore import Qt, QThread, Signal
+
+
 from funciones.procesador import procesar_renpy, procesar_html, procesar_rpgm, procesar_unity, procesar_multimedia, procesar_directorios, procesar_descargas
+# ==========================================
+# EL "ANTI-COLGADOR" (Obrero en segundo plano)
+# ==========================================
+class WorkerRenpy(QThread):
+    senal_log = Signal(str)
+    senal_progreso = Signal(int, int)
 
+    def __init__(self, origen, destino, tipo_directorio, opciones):
+        super().__init__()
+        self.origen = origen
+        self.destino = destino
+        self.tipo_directorio = tipo_directorio
+        self.opciones = opciones
 
+    def run(self):
+        try:
+            # Llamamos al procesador y le pasamos los walkie-talkies (emits)
+            procesar_renpy(
+                origen=self.origen,
+                destino=self.destino,
+                tipo_directorio=self.tipo_directorio,
+                opciones=self.opciones,
+                log_callback=self.senal_log.emit,
+                progress_callback=self.senal_progreso.emit
+            )
+            self.senal_log.emit("\n✅ PROCESO COMPLETADO CON ÉXITO")
+        except Exception as e:
+            self.senal_log.emit(f"\n❌ ERROR CRÍTICO: {str(e)}")
+
+# ==========================================
+# MAIN WINDOW
+# ==========================================
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
+        # 👇 ¡AQUÍ FALTA ESTE BLOQUE EXACTAMENTE! 👇
+        # ==========================================
+        # ARREGLO PARA EL PANEL DE LOG
+        # ==========================================
+        self.plainTextEdit_log = QPlainTextEdit(self.ui.tab_log)
+        self.plainTextEdit_log.setReadOnly(True)
+        self.plainTextEdit_log.setStyleSheet("background-color: #2b2b2b; color: #ffffff; font-family: Consolas; font-size: 11pt;")
+        layout_log = QVBoxLayout(self.ui.tab_log)
+        layout_log.addWidget(self.plainTextEdit_log)
+        # ==========================================
+        # 👆 FIN DEL BLOQUE 👆
+
         # Hide rpyc_renpy
         self.ui.chk_rpyc_renpy.hide()
 
@@ -176,39 +220,81 @@ class MainWindow(QMainWindow):
         # Habilitar el botón si todas las condiciones se cumplen
         self.ui.btn_inicio_renpy.setEnabled(has_origin_dir and has_checked_checkbox and has_selected_radio)
 
+    # def on_btn_inicio_renpy_clicked(self):
+    #     if not self.validate_destination_directory_renpy():
+    #         return  # Si el usuario elige "No", se cancela la ejecución
+
+    #     # Obtenemos los valores seleccionados
+    #     origen = self.ui.it_origen_renpy.text().strip()
+    #     destino = self.ui.it_destino_renpy.text().strip()
+
+    #     # Determinamos el tipo de directorio
+    #     tipo_directorio = "único" if self.ui.rb_dir_unico_renpy.isChecked() else "múltiple"
+    #     # tipo_directorio = "único" if self.ui.rb_dir_unico_renpy.isChecked() else "múltiple"
+
+    #     # Obtenemos los checkboxes marcados
+    #     opciones = []
+    #     if self.ui.chk_rpyc_renpy.isChecked():
+    #         opciones.append("rpyc")
+    #     if self.ui.chk_rpa_renpy.isChecked():
+    #         opciones.append("rpa")
+
+    #     if self.ui.chk_video_renpy.isChecked():
+    #         opciones.append("video")
+    #     if self.ui.chk_music_renpy.isChecked():
+    #         opciones.append("audio")
+    #     if self.ui.chk_img_renpy.isChecked():
+    #         opciones.append("image")
+    #     if self.ui.chk_sources_renpy.isChecked():
+    #         opciones.append("font")
+
+    #     # Llamamos a la función externa pasando los datos
+    #     procesar_renpy(origen, destino, tipo_directorio, opciones)
+
+    #     # Mostramos una alerta de confirmación
+    #     self.show_alert("Proceso iniciado", "El procesamiento ha comenzado.")
+
+
     def on_btn_inicio_renpy_clicked(self):
         if not self.validate_destination_directory_renpy():
-            return  # Si el usuario elige "No", se cancela la ejecución
+            return
 
         # Obtenemos los valores seleccionados
         origen = self.ui.it_origen_renpy.text().strip()
         destino = self.ui.it_destino_renpy.text().strip()
-
-        # Determinamos el tipo de directorio
         tipo_directorio = "único" if self.ui.rb_dir_unico_renpy.isChecked() else "múltiple"
-        # tipo_directorio = "único" if self.ui.rb_dir_unico_renpy.isChecked() else "múltiple"
 
         # Obtenemos los checkboxes marcados
         opciones = []
-        if self.ui.chk_rpyc_renpy.isChecked():
-            opciones.append("rpyc")
-        if self.ui.chk_rpa_renpy.isChecked():
-            opciones.append("rpa")
+        if self.ui.chk_rpyc_renpy.isChecked(): opciones.append("rpyc")
+        if self.ui.chk_rpa_renpy.isChecked(): opciones.append("rpa")
+        if self.ui.chk_video_renpy.isChecked(): opciones.append("video")
+        if self.ui.chk_music_renpy.isChecked(): opciones.append("audio")
+        if self.ui.chk_img_renpy.isChecked(): opciones.append("image")
+        if self.ui.chk_sources_renpy.isChecked(): opciones.append("font")
 
-        if self.ui.chk_video_renpy.isChecked():
-            opciones.append("video")
-        if self.ui.chk_music_renpy.isChecked():
-            opciones.append("audio")
-        if self.ui.chk_img_renpy.isChecked():
-            opciones.append("image")
-        if self.ui.chk_sources_renpy.isChecked():
-            opciones.append("font")
+        # --- AQUÍ CONECTAMOS EL ANTI-COLGADOR ---
 
-        # Llamamos a la función externa pasando los datos
-        procesar_renpy(origen, destino, tipo_directorio, opciones)
+        # 1. Preparamos la interfaz
+        self.ui.frame_resultados.setVisible(True)     # Mostramos la barra de progreso
+        self.ui.btn_inicio_renpy.setEnabled(False)    # Bloqueamos el botón Iniciar
+        self.plainTextEdit_log.clear()                # Limpiamos el panel
+        self.ui.progressBar.setValue(0)               # Reseteamos la barra
+        self.ui.statusTextLabel.setText("Procesando...")
 
-        # Mostramos una alerta de confirmación
-        self.show_alert("Proceso iniciado", "El procesamiento ha comenzado.")
+        # Cambiamos la vista automáticamente a la pestaña del Log
+        self.ui.tabWidget.setCurrentWidget(self.ui.tab_log)
+
+        # 2. Creamos al trabajador
+        self.worker_renpy = WorkerRenpy(origen, destino, tipo_directorio, opciones)
+
+        # 3. Conectamos sus señales a nuestras funciones de interfaz
+        self.worker_renpy.senal_log.connect(self.escribir_en_log)
+        self.worker_renpy.senal_progreso.connect(self.actualizar_barra)
+        self.worker_renpy.finished.connect(self.proceso_terminado_renpy)
+
+        # 4. ¡A trabajar en segundo plano!
+        self.worker_renpy.start()
 
     def validate_destination_directory_renpy(self):
         """Verifica si es necesario mostrar la alerta de directorio destino vacío."""
@@ -787,6 +873,24 @@ class MainWindow(QMainWindow):
         msg_box.setStandardButtons(QMessageBox.Ok)
         msg_box.exec()
 
+    # ==========================================
+    # RECEPTORES DE SEÑALES (Actualizan la UI)
+    # ==========================================
+    def escribir_en_log(self, mensaje):
+        """Recibe texto del Worker y lo escribe en el panel negro"""
+        self.plainTextEdit_log.appendPlainText(mensaje)
+
+    def actualizar_barra(self, actual, total):
+        """Recibe los números del Worker y mueve la barra"""
+        self.ui.progressBar.setMaximum(total)
+        self.ui.progressBar.setValue(actual)
+        self.ui.statusTextLabel.setText(f"Copiando... {actual} de {total}")
+
+    def proceso_terminado_renpy(self):
+        """Se activa solo cuando el Worker termina"""
+        self.ui.btn_inicio_renpy.setEnabled(True) # Desbloqueamos el botón
+        self.ui.statusTextLabel.setText("Finalizado.")
+        self.show_alert("Proceso completado", "El procesamiento ha finalizado.")
 
 
 if __name__ == "__main__":
