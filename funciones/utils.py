@@ -1,9 +1,32 @@
-
+from collections import Counter
+from typing import Optional, List
 import os
-
+from collections import Counter
 # ================================================
 # FUNCIONES PARA LISTAR CARPETAS
 # ================================================
+
+def files_in_folder(folder_path: str, excluir: Optional[List[str]] = None) -> Counter:
+    """Escanea el directorio UNA SOLA VEZ ignorando las carpetas excluidas."""
+    if excluir is None: excluir = []
+    EXCLUIR_CARPETAS = [c.lower() for c in excluir]
+    conteos = Counter()
+
+    try:
+        for root, dirs, files in os.walk(folder_path):
+            # Filtramos carpetas no deseadas en CUALQUIER nivel (ej: lib, renpy, cache)
+            dirs[:] = [d for d in dirs if d.lower() not in EXCLUIR_CARPETAS and not d.startswith(".")]
+
+            for archivo in files:
+                _, ext = os.path.splitext(archivo)
+                conteos[ext.lower()] += 1
+        return conteos
+    except Exception as e:
+        print(f"❌ Error al escanear el directorio: {e}")
+        return Counter()
+
+
+
 def listar_sub_carpetas(directorio):
     """Devuelve una lista con las rutas completas de las carpetas de primer nivel dentro de un directorio, ignorando archivos y subcarpetas."""
     try:
@@ -108,3 +131,4 @@ def archivos_por_extension(ruta, extensiones):
     except Exception as e:
         print(f"Error al ejecutar la función 'archivos_por_extension': {str(e)}")
         return 0
+

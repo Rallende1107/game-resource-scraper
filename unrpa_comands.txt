@@ -1,0 +1,27 @@
+.venv) D:\01-Python\01.- Sin_Framework\game-resource-scraper>unrpa -h
+usage: unrpa [-h] [-v] [-s] [-l | -t] [-p PATH] [-m] [--version] [--continue-on-error] [-f VERSION] [-o OFFSET] [-k KEY] FILENAME [FILENAME ...]
+
+Extract files from the RPA archive format (from the Ren'Py Visual Novel Engine).
+
+positional arguments:
+  FILENAME              the archive(s) to extract.
+
+options:
+  -h, --help            show this help message and exit
+  -v, --verbose         explain what is being done, duplicate for more verbosity (default: 1).
+  -s, --silent          no non-essential output.
+  -l, --list            list the contents of the archive(s) in a flat list.
+  -t, --tree            list the contents of the archive(s) in a tree view
+  -p, --path PATH       extract files to the given path (default: the current working directory).
+  -m, --mkdir           will make any missing directories in the given extraction path.
+  --version             show program's version number and exit
+
+advanced arguments:
+  Options that most users don't need, but might allow working with unsupported or damaged archives.
+
+  --continue-on-error   try to continue extraction when something goes wrong.
+  -f, --force VERSION   ignore the archive header and assume this exact version. Possible versions: RPA-1.0, RPA-2.0, RPA-3.0, ALT-1.0, ZiX-12A, ZiX-12B, RPA-3.2, RPA-4.0.
+  -o, --offset OFFSET   ignore the archive header and use this exact offset.
+  -k, --key KEY         ignore the archive header and use this exact key.
+
+(.venv) D:\01-Python\01.- Sin_Framework\game-resource-scraper>

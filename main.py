@@ -4,14 +4,16 @@ from ui.main_view import Ui_MainWindow
 from PySide6.QtCore import Qt
 from funciones.procesador import procesar_renpy, procesar_html, procesar_rpgm, procesar_unity, procesar_multimedia, procesar_directorios, procesar_descargas
 
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
+        # Hide rpyc_renpy
+        self.ui.chk_rpyc_renpy.hide()
 
-        index = self.ui.tabWidget.indexOf(self.ui.tab_log)
-        self.ui.tabWidget.removeTab(index)
+        self.ui.tabWidget.setCurrentWidget(self.ui.tab_inicio)
 
         # Cambiar el título de la ventana
         self.setWindowTitle("Extracción Media Juegos")
@@ -26,11 +28,9 @@ class MainWindow(QMainWindow):
         self.ui.groupBox_tipoCopia_unity.setVisible(False)
         # self.ui.groupBox_tipoCopia_directorios.setVisible(False)
 
-
         # Conectar los botones "Seleccionar" a la función select_directory
         self._setup_directory_selectors()
         self._setup_directory_selector()
-
 
         # Conectar los checkboxes "Seleccionar todo" a la función toggle_all_checkboxes
         self._setup_checkbox_selectors()
@@ -78,19 +78,12 @@ class MainWindow(QMainWindow):
         # Conectar el botón "Iniciar" a su acción
         self.ui.btn_inicio_directorios.clicked.connect(self.on_btn_inicio_directorios_clicked)
 
-
         # Agregado para inicializar las validaciones
         self._setup_descargas_button_validation()
         # Asegurar estado inicial del botón
         self.validate_descargas_start_button()
         # Conectar el botón "Iniciar" a su acción
         self.ui.btn_inicio_descargas.clicked.connect(self.on_btn_inicio_descargas_clicked)
-
-
-
-
-
-
 
     def select_directory(self, line_edit):
         """Abre un cuadro de diálogo para seleccionar un directorio y lo muestra en un QLineEdit."""
@@ -201,14 +194,15 @@ class MainWindow(QMainWindow):
             opciones.append("rpyc")
         if self.ui.chk_rpa_renpy.isChecked():
             opciones.append("rpa")
+
         if self.ui.chk_video_renpy.isChecked():
             opciones.append("video")
         if self.ui.chk_music_renpy.isChecked():
-            opciones.append("music")
+            opciones.append("audio")
         if self.ui.chk_img_renpy.isChecked():
-            opciones.append("img")
+            opciones.append("image")
         if self.ui.chk_sources_renpy.isChecked():
-            opciones.append("sources")
+            opciones.append("font")
 
         # Llamamos a la función externa pasando los datos
         procesar_renpy(origen, destino, tipo_directorio, opciones)
@@ -800,3 +794,4 @@ if __name__ == "__main__":
     window = MainWindow()
     window.show()
     sys.exit(app.exec())
+
