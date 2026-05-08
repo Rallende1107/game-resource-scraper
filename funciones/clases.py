@@ -30,8 +30,9 @@ class WHATEVER(HeaderBasedVersion):
 # Renpy
 # ==========================================
 class RenpyUtils:
-    def __init__(self, log_callback=print):
+    def __init__(self, log_callback=print, is_cancelled_callback=None):
         self.log = log_callback
+        self.verificar_cancelacion = is_cancelled_callback
 
     def es_juego_renpy(self, directorio: str) -> bool:
         ESPERADO_RENPY = ['game']
@@ -88,6 +89,12 @@ class RenpyUtils:
         """Worker que usa la API nativa de unrpa con soporte para ofuscación."""
         archivo_rpa = os.path.basename(ruta_completa)
 
+        if self.verificar_cancelacion and self.verificar_cancelacion():
+            return False
+
+        # 1. ¡Gritamos que empezamos a lo loco!
+        self.log(f"🔥 [ABRIENDO] Desempaquetando RPA: {archivo_rpa} ...")
+
         try:
             with open(ruta_completa, "rb") as f:
                 header = f.read(32).decode(errors="ignore")
@@ -95,57 +102,69 @@ class RenpyUtils:
             header = ""
 
         if header.startswith("RWA"):
-            return False, f"⛔ {archivo_rpa} protegido ({header.strip()}) → saltando"
+            self.log(f"   ⛔ [SALTADO] {archivo_rpa} está protegido ({header.strip()})")
+            return False
 
         try:
-            # verbosity=0 hace que trabaje en silencio absoluto y a máxima velocidad
-            extractor = UnRPA(filename=ruta_completa, path=carpeta_game, continue_on_error=True, verbosity=1)
+            # verbosity=0 para que la librería no imprima en la consola invisible
+            extractor = UnRPA(filename=ruta_completa, path=carpeta_game, continue_on_error=True, verbosity=0)
             extractor.extract_files()
 
         except Exception as e1:
             try:
                 # INTENTO 2: Forzando la versión estándar RPA-3.0
-                extractor = UnRPA(filename=ruta_completa, path=carpeta_game, version=official_rpa.RPA3, verbosity=1)
+                self.log(f"   ⚠️ [REINTENTO] Forzando V3 en {archivo_rpa}...")
+                extractor = UnRPA(filename=ruta_completa, path=carpeta_game, version=official_rpa.RPA3, verbosity=0)
                 extractor.extract_files()
 
             except Exception as e2:
                 try:
                     # INTENTO 3: El Hack Maestro "WHATEVER" para juegos ofuscados
-                    extractor = UnRPA(filename=ruta_completa, path=carpeta_game, version=WHATEVER, verbosity=1)
+                    self.log(f"   ☢️ [HACK] Usando WHATEVER en {archivo_rpa}...")
+                    extractor = UnRPA(filename=ruta_completa, path=carpeta_game, version=WHATEVER, verbosity=0)
                     extractor.extract_files()
 
                 except Exception as e3:
                     # Si fallan los 3, reportamos el último error
-                    return False, f"❌ Falló {archivo_rpa}. Error final: {str(e3)}"
+                    self.log(f"   ❌ [ERROR] Falló {archivo_rpa}: {str(e3)}")
+                    return False
 
         # Si llegamos aquí, uno de los 3 intentos funcionó perfectamente
         try: os.remove(ruta_completa)
         except Exception: pass
-        return True, f"{archivo_rpa} extraído con éxito."
+        self.log(f"   ✅ [LISTO] -> {archivo_rpa} extraído y destruido.")
+        return True
 
     def procesar_rpa(self, ruta_carpeta):
         nombre_carpeta = os.path.basename(ruta_carpeta)
         carpeta_game = os.path.join(ruta_carpeta, 'game')
-        self.log(f"\n>>> 📦 INICIANDO EXTRACCIÓN RPA: {nombre_carpeta}")
+
+        # Un título bien grande para que se note en el Log
+        self.log(f"\n" + "="*50)
+        self.log(f"📦 EXTRACCIÓN RPA DE: {nombre_carpeta}")
+        self.log("="*50)
 
         # archivos_rpa = [(os.path.join(r, f), f) for r, _, fs in os.walk(carpeta_game) for f in fs if f.lower().endswith('.rpa')]
         archivos_rpa = self.listar_archivos(ruta_juego=ruta_carpeta, extension='.rpa')
         total_rpa = len(archivos_rpa)
 
         if total_rpa == 0:
+            self.log("   🤷‍♂️ No hay archivos .RPA aquí.")
             return
 
+        self.log(f"🎯 Se detectaron {total_rpa} archivos RPA.\n")
         archivos_extraidos = 0
         with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
             futuros = [executor.submit(self.worker_rpa, ruta, carpeta_game) for ruta in archivos_rpa]
 
             for futuro in concurrent.futures.as_completed(futuros):
                 try:
-                    exito, mensaje = futuro.result()
+                    exito = futuro.result()
                     if exito: archivos_extraidos += 1
-                    self.log(f"  [{archivos_extraidos}/{total_rpa}] {mensaje}")
                 except Exception as e:
                     self.log(f"❌ Error en hilo: {e}")
+
+        self.log(f"\n🎉 EXTRACCIÓN FINALIZADA: {archivos_extraidos}/{total_rpa} paquetes de {nombre_carpeta}\n")
 
     def descompile_rpyc(self, ruta_juego):
         nombre_carpeta = os.path.basename(ruta_juego)
@@ -171,16 +190,15 @@ class RenpyUtils:
 # ==========================================
 # Copiado
 # ==========================================
-import os
-import shutil
-
 class CopyUtils:
-    def __init__(self, log_callback=print, progress_callback=None):
+    def __init__(self, log_callback=print, progress_callback=None, is_cancelled_callback=None):
         self.log = log_callback
         self.actualizar_progreso = progress_callback
+        self.verificar_cancelacion = is_cancelled_callback
+
 
     def copia_organizada(self, origen, destino, tipo_nombre, formatos, total_archivos, excluir=None):
-        """Copia archivos manteniendo la estructura original con logs detallados."""
+        """Copia archivos manteniendo la estructura original."""
         if excluir is None: excluir = []
         EXCLUIR_CARPETAS = [c.lower() for c in excluir]
         origen_norm = os.path.normpath(origen)
@@ -189,15 +207,25 @@ class CopyUtils:
         base_dest = os.path.dirname(origen) if destino == origen or not destino.strip() else destino
         ruta_destino_final = os.path.join(base_dest, nombre_carpeta, tipo_nombre)
 
-        # --- MENSAJE DE INICIO QUE SOLICITASTE ---
-        self.log(f"📂 Iniciando copia de {tipo_nombre} desde {nombre_carpeta} hacia {os.path.basename(base_dest)}")
-        self.log(f"   ↳ Destino completo: {ruta_destino_final}")
+        # --- LOG ESTILO PANEL INFORMATIVO ---
+        self.log(f"\n" + "="*50)
+        self.log(f"📂 INICIANDO COPIA ORGANIZADA: {tipo_nombre.upper()}")
+        self.log("="*50)
+        self.log(f"   📍 Origen:  {nombre_carpeta}")
+        self.log(f"   🎯 Destino: {os.path.basename(ruta_destino_final)}")
+        self.log(f"   📦 Total a mover: {total_archivos} archivos\n")
 
         os.makedirs(ruta_destino_final, exist_ok=True)
         archivos_copiados = 0
 
+
         try:
             for root, dirs, files in os.walk(origen):
+                # 👇 2. Frenar si el usuario presionó Cancelar al buscar carpetas
+                if self.verificar_cancelacion and self.verificar_cancelacion():
+                    self.log("   🛑 [INTERRUMPIDO] Copia cancelada por el usuario.")
+                    break
+
                 dirs[:] = [
                     d for d in dirs
                     if not (d.lower() in EXCLUIR_CARPETAS and os.path.normpath(root) == origen_norm)
@@ -205,6 +233,10 @@ class CopyUtils:
                 ]
 
                 for archivo in files:
+                    # 👇 3. Frenar si presionó Cancelar en medio de la copia de archivos
+                    if self.verificar_cancelacion and self.verificar_cancelacion():
+                        break
+
                     if archivo.lower().endswith(tuple(formatos)):
                         origen_archivo = os.path.join(root, archivo)
                         rel = os.path.relpath(origen_archivo, origen)
@@ -215,19 +247,18 @@ class CopyUtils:
 
                         archivos_copiados += 1
 
-                        # Actualización de progreso optimizada
                         if self.actualizar_progreso:
                             self.actualizar_progreso(archivos_copiados, total_archivos)
-
-                        # Solo imprimimos en consola cada 5 archivos para no saturar
-                        if archivos_copiados % 5 == 0 or archivos_copiados == total_archivos:
+                        elif archivos_copiados % 10 == 0 or archivos_copiados == total_archivos:
                             print(f"\r  [Copiando] {archivos_copiados}/{total_archivos}...", end='', flush=True)
 
-            if not self.actualizar_progreso: print()
-            self.log(f"🎉 Finalizado: Se copiaron {archivos_copiados} archivos correctamente.")
+            # Si terminó naturalmente (sin cancelar), lanzamos el log de éxito
+            if not self.verificar_cancelacion or not self.verificar_cancelacion():
+                if not self.actualizar_progreso: print()
+                self.log(f"🎉 FINALIZADO: Se copiaron {archivos_copiados}/{total_archivos} archivos de {tipo_nombre}.")
 
         except Exception as e:
-            self.log(f"❌ Error crítico: {e}")
+            self.log(f"❌ Error crítico en copia organizada: {e}")
 
     def copia_directa(self, origen, destino, tipo_nombre, formatos, total_archivos, excluir=None):
         """Copia archivos aplanando la estructura."""
@@ -239,13 +270,23 @@ class CopyUtils:
         base_dest = os.path.dirname(origen) if destino == origen or not destino.strip() else destino
         ruta_destino_final = os.path.join(base_dest, f"{nombre_carpeta}_Extraccion", tipo_nombre)
 
-        self.log(f"📑 Iniciando copia DIRECTA de {tipo_nombre} desde {nombre_carpeta}")
-        os.makedirs(ruta_destino_final, exist_ok=True)
+        # --- LOG ESTILO PANEL INFORMATIVO ---
+        self.log(f"\n" + "="*50)
+        self.log(f"📑 INICIANDO COPIA DIRECTA: {tipo_nombre.upper()}")
+        self.log("="*50)
+        self.log(f"   📍 Origen:  {nombre_carpeta}")
+        self.log(f"   🎯 Destino: {os.path.basename(ruta_destino_final)}")
+        self.log(f"   📦 Total a mover: {total_archivos} archivos\n")
 
+        os.makedirs(ruta_destino_final, exist_ok=True)
         archivos_copiados = 0
 
         try:
             for root, dirs, files in os.walk(origen):
+                if self.verificar_cancelacion and self.verificar_cancelacion():
+                    self.log("   🛑 [INTERRUMPIDO] Copia directa cancelada por el usuario.")
+                    break
+
                 dirs[:] = [
                     d for d in dirs
                     if not (d.lower() in EXCLUIR_CARPETAS and os.path.normpath(root) == origen_norm)
@@ -253,6 +294,9 @@ class CopyUtils:
                 ]
 
                 for archivo in files:
+                    if self.verificar_cancelacion and self.verificar_cancelacion():
+                        break
+
                     if archivo.lower().endswith(tuple(formatos)):
                         ruta_origen = os.path.join(root, archivo)
                         partes_ruta = os.path.relpath(root, origen).split(os.sep)
@@ -264,12 +308,12 @@ class CopyUtils:
 
                         if self.actualizar_progreso:
                             self.actualizar_progreso(archivos_copiados, total_archivos)
-
-                        if archivos_copiados % 5 == 0 or archivos_copiados == total_archivos:
+                        elif archivos_copiados % 10 == 0 or archivos_copiados == total_archivos:
                             print(f"\r  [Copiando] {archivos_copiados}/{total_archivos}...", end='', flush=True)
 
-            if not self.actualizar_progreso: print()
-            self.log(f"🎉 Copia directa completada.")
+            if not self.verificar_cancelacion or not self.verificar_cancelacion():
+                if not self.actualizar_progreso: print()
+                self.log(f"🎉 FINALIZADO: Copia directa de {archivos_copiados}/{total_archivos} archivos de {tipo_nombre} completada.")
 
         except Exception as e:
-            self.log(f"❌ Error crítico: {e}")
+            self.log(f"❌ Error crítico en copia directa: {e}")

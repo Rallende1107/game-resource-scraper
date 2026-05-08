@@ -4,11 +4,12 @@ from .clases import RenpyUtils, CopyUtils
 from .utils import files_in_folder, archivos_por_extension, listar_sub_carpetas, verificar_estructura_html, listar_carpetas_html
 
 # from pytubefix import YouTube
-def procesar_renpy(origen, destino, tipo_directorio, opciones, log_callback=print, progress_callback=None):
-    utils = RenpyUtils(log_callback=log_callback)
-    copiadora = CopyUtils(log_callback=log_callback, progress_callback=progress_callback)
-    excluir = EXCLUIR_CARPETAS[1]["excluir_carpetas"]
+def procesar_renpy(origen, destino, tipo_directorio, opciones, log_callback=print, progress_callback=None, is_cancelled_callback=None):
+    utils = RenpyUtils(log_callback=log_callback, is_cancelled_callback=is_cancelled_callback)
+    copiadora = CopyUtils(log_callback=log_callback, progress_callback=progress_callback, is_cancelled_callback=is_cancelled_callback)
 
+    excluir = EXCLUIR_CARPETAS[1]["excluir_carpetas"]
+    # 👇 1. Le pasamos la señal a RenpyUtils
     # =========================
     # detectar carpetas
     # =========================
@@ -27,6 +28,10 @@ def procesar_renpy(origen, destino, tipo_directorio, opciones, log_callback=prin
     quiere_copiar = any(op in opciones for op in OPCIONES_COPIA)
 
     for carpeta in CARPETAS:
+
+        if is_cancelled_callback and is_cancelled_callback():
+            break
+
         nombre_carpeta = os.path.basename(carpeta)
         utils.log(f"\n>>> 🚀 PROCESANDO: {nombre_carpeta}")
 
